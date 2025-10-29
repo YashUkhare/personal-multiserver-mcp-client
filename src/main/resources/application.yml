@@ -1,0 +1,47 @@
+# application.yml
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mcp-client
+
+mcp:
+  client:
+    name: "spring-mcp-client"
+    version: "1.0.0"
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: true
+
+logging:
+  level:
+    com.example.mcpclient: DEBUG
+    root: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.example.mcpclient: TRACE
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.example.mcpclient: INFO

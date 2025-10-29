@@ -1,442 +1,231 @@
-# MCP Multi-Server Client - Spring Boot
+# MCP Multi-Server Client (Spring Boot)
 
-A production-ready Spring Boot application that connects to multiple Model Context Protocol (MCP) servers, allowing you to manage and interact with various AI tools and resources.
+Spring Boot 3 service that connects to and orchestrates multiple Model Context Protocol (MCP) servers. It exposes a secure REST API for registering MCP servers, discovering tools and resources, invoking tools synchronously or via background jobs, and monitoring overall health.
 
-## 🚀 Features
+## Features
+- Manage the full life cycle of multiple MCP servers (register, auto-reconnect on startup, unregister).
+- Discover tools and resources from each server and persist metadata in SQL Server.
+- Invoke tools directly or queue asynchronous jobs backed by Spring `@Async` execution.
+- JWT-based authentication with user registration and login endpoints.
+- Global rate limiting (50 req/min) and centralized exception handling.
+- Actuator health checks plus a custom MCP health indicator, Prometheus scraping, and structured logging.
+- Interactive OpenAPI/Swagger UI for exploring the API.
 
-- ✅ Connect to multiple MCP servers simultaneously
-- ✅ RESTful API for server management
-- ✅ **Interactive Swagger/OpenAPI documentation**
-- ✅ Dynamic tool discovery and invocation
-- ✅ Resource listing and management
-- ✅ Graceful connection handling and error management
-- ✅ Health monitoring and status checks
-- ✅ Comprehensive logging with SLF4J
-- ✅ Clean architecture with separation of concerns
+## Tech Stack
+- Java 21, Spring Boot 3.5.7
+- Spring Web, Spring Validation, Spring Data JPA, Spring Security
+- Microsoft SQL Server (via `mssql-jdbc`)
+- Jackson for JSON-RPC handling, JJWT for tokens, Bucket4j for rate limiting
+- springdoc-openapi, Micrometer + Prometheus registry
 
-## 📋 Prerequisites
+## Project Structure
+- `src/main/java/com/mcp/client/ClientApplication.java`: application entry point (`@SpringBootApplication`, `@EnableAsync`).
+- `config/`: security (`SecurityConfig`) and OpenAPI metadata.
+- `controller/`: `/api/auth` and `/api/mcp` REST endpoints.
+- `service/`: `McpClientService` (orchestration, persistence) and `McpServerConnection` (JSON-RPC bridge).
+- `entity/` and `repository/`: JPA entities for servers, tools, resources, jobs, and users.
+- `security/`: JWT generation/validation and the `UserDetailsService` adapter.
+- `filter/RateLimitFilter`: Bucket4j servlet filter limiting traffic to 50 requests per minute.
+- `monitoring/McpServersHealthIndicator`: contributes connected/total server counts to Actuator health.
+- `model/`: JSON-RPC models and DTOs (`ServerConfig`, `ToolCallRequest`, etc.).
 
-- **Java 17+**
-- **Maven 3.6+**
-- **Node.js 18+** (for MCP servers)
-- **npm** (comes with Node.js)
-
-## 🏗️ Project Structure
-
-```
-mcp-client/
+````text
+client/
+├── README.md
+├── pom.xml
+├── mvnw
+├── mvnw.cmd
+├── .mvn/
+│   └── wrapper/
+│       ├── maven-wrapper.jar
+│       └── maven-wrapper.properties
 ├── src/
 │   ├── main/
-│   │   ├── java/com/example/mcpclient/
-│   │   │   ├── config/
-│   │   │   │   └── OpenApiConfig.java
-│   │   │   ├── controller/
-│   │   │   │   └── McpController.java
-│   │   │   ├── model/
-│   │   │   │   ├── JsonRpcRequest.java
-│   │   │   │   ├── JsonRpcResponse.java
-│   │   │   │   ├── McpTool.java
-│   │   │   │   ├── McpResource.java
-│   │   │   │   ├── ServerConfig.java
-│   │   │   │   ├── InitializeRequest.java
-│   │   │   │   └── ToolCallRequest.java
-│   │   │   ├── service/
-│   │   │   │   ├── McpClientService.java
-│   │   │   │   └── McpServerConnection.java
-│   │   │   └── McpClientApplication.java
+│   │   ├── java/
+│   │   │   └── com/mcp/client/
+│   │   │       ├── ClientApplication.java
+│   │   │       ├── config/
+│   │   │       │   ├── OpenApiConfig.java
+│   │   │       │   └── SecurityConfig.java
+│   │   │       ├── controller/
+│   │   │       │   ├── AuthController.java
+│   │   │       │   └── McpController.java
+│   │   │       ├── entity/
+│   │   │       │   ├── ResourceEntity.java
+│   │   │       │   ├── ServerEntity.java
+│   │   │       │   ├── ToolEntity.java
+│   │   │       │   ├── ToolJobEntity.java
+│   │   │       │   └── UserEntity.java
+│   │   │       ├── exception/
+│   │   │       │   └── GlobalExceptionHandler.java
+│   │   │       ├── filter/
+│   │   │       │   └── RateLimitFilter.java
+│   │   │       ├── monitoring/
+│   │   │       │   └── McpServersHealthIndicator.java
+│   │   │       ├── model/
+│   │   │       │   ├── InitializeRequest.java
+│   │   │       │   ├── JsonRpcRequest.java
+│   │   │       │   ├── JsonRpcResponse.java
+│   │   │       │   ├── McpResource.java
+│   │   │       │   ├── McpTool.java
+│   │   │       │   ├── ServerConfig.java
+│   │   │       │   └── ToolCallRequest.java
+│   │   │       ├── repository/
+│   │   │       │   ├── ResourceRepository.java
+│   │   │       │   ├── ServerRepository.java
+│   │   │       │   ├── ToolJobRepository.java
+│   │   │       │   ├── ToolRepository.java
+│   │   │       │   └── UserRepository.java
+│   │   │       ├── security/
+│   │   │       │   ├── CustomUserDetailsService.java
+│   │   │       │   ├── JwtAuthFilter.java
+│   │   │       │   └── JwtService.java
+│   │   │       └── service/
+│   │   │           ├── McpClientService.java
+│   │   │           └── McpServerConnection.java
 │   │   └── resources/
-│   │       └── application.yml
+│   │       ├── application.yml
+│   │       ├── application.properties
+│   │       ├── static/
+│   │       └── templates/
 │   └── test/
-│       └── java/com/example/mcpclient/
-└── pom.xml
-```
+│       └── java/
+│           └── com/mcp/client/
+│               └── ClientApplicationTests.java
+└── target/ (build output)
+````
 
-## 🔧 Installation
+## Prerequisites
+- JDK 21
+- Maven 3.9+ (or use the bundled `mvnw.cmd`/`mvnw` wrapper)
+- Microsoft SQL Server 2019+ (or Azure SQL) with a database named `mcp_client`
+- Node.js 18+ and npm (only required when you want to run sample MCP servers via `npx`)
 
-### 1. Clone or Create the Project
+## Configuration
+`src/main/resources/application.yml` ships with sensible defaults:
 
-```bash
-mkdir mcp-client
-cd mcp-client
-```
+- Server port: `8080`
+- Datasource: `jdbc:sqlserver://localhost:1433;databaseName=mcp_client;encrypt=false` with `sa/root@123`
+- JPA: `ddl-auto: update` (creates tables automatically in development)
+- Client metadata: `mcp.client.name` and `mcp.client.version` (shared with MCP servers during initialization)
+- Swagger UI exposed at `/swagger-ui.html`
+- Actuator endpoints exposed for `health`, `metrics`, and `prometheus`
 
-### 2. Copy All Java Files
-
-Copy all the Java files from the artifacts above into their respective packages:
-
-- Config files → `src/main/java/com/example/mcpclient/config/`
-  - OpenApiConfig.java
-- Controller files → `src/main/java/com/example/mcpclient/controller/`
-- Model files → `src/main/java/com/example/mcpclient/model/`
-- Service files → `src/main/java/com/example/mcpclient/service/`
-- Main application → `src/main/java/com/example/mcpclient/`
-
-### 3. Copy Configuration Files
-
-Copy `application.yml` to `src/main/resources/`
-
-### 4. Copy pom.xml
-
-Copy the `pom.xml` to the project root
-
-### 5. Build the Project
+Override any property via environment variables or JVM args, for example:
 
 ```bash
-mvn clean install
+mvnw.cmd spring-boot:run ^
+  -Dspring-boot.run.jvmArguments="
+    -Dspring.datasource.url=jdbc:sqlserver://localhost:1433;database=mcp_client;encrypt=false
+    -Dspring.datasource.username=sa
+    -Dspring.datasource.password=ChangeMe!"
 ```
 
-## 🚀 Running the Application
+> **Security note:** replace the default datasource password and JWT signing key (`JwtService`) before deploying beyond local development.
 
-### Start the Application
+## Build and Run
+```bash
+# Windows
+mvnw.cmd clean package
+mvnw.cmd spring-boot:run
+
+# macOS/Linux
+./mvnw clean package
+./mvnw spring-boot:run
+```
+
+The service listens on `http://localhost:8080`. To run the packaged jar:
 
 ```bash
-mvn spring-boot:run
+java -jar target/client-0.0.1-SNAPSHOT.jar
 ```
 
-The application will start on `http://localhost:8080`
-
-### Verify It's Running
+## Running Sample MCP Servers
+Use the official MCP sample servers to exercise the API:
 
 ```bash
-curl http://localhost:8080/api/mcp/health
+npx -y @modelcontextprotocol/server-memory
+npx -y @modelcontextprotocol/server-filesystem ./sandbox
+npx -y @modelcontextprotocol/server-time
 ```
 
-Expected output:
-```json
-{
-  "status": "UP",
-  "totalServers": 0,
-  "connectedServers": 0
-}
-```
+Register each server with its launch command so the client can spawn and manage the process.
 
-## 📚 API Documentation
+## Authentication Workflow
+1. **Register a user (open endpoint)**
+   ```bash
+   curl -X POST http://localhost:8080/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"username":"admin","password":"StrongPass!","role":"ADMIN"}'
+   ```
+2. **Login and obtain a JWT**
+   ```bash
+   curl -X POST "http://localhost:8080/api/auth/login?username=admin&password=StrongPass!"
+   ```
+   The response contains `token`, `username`, and `role`.
+3. **Call protected endpoints with the token**
+   ```bash
+   curl http://localhost:8080/api/mcp/servers \
+     -H "Authorization: Bearer <token>"
+   ```
 
-### Swagger UI
+Endpoints under `/api/auth/**`, `/swagger-ui/**`, and `/v3/api-docs/**` are public; everything else requires a valid Bearer token.
 
-Once the application is running, access the interactive API documentation at:
+## Key REST Endpoints
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| POST | `/api/mcp/servers` | Register and connect to a new MCP server (accepts `ServerConfig`). |
+| GET | `/api/mcp/servers` | List registered servers with connection status. |
+| GET | `/api/mcp/servers/{serverId}/status` | Check if a server connection is alive. |
+| DELETE | `/api/mcp/servers/{serverId}` | Gracefully disconnect and unregister a server. |
+| GET | `/api/mcp/servers/{serverId}/tools` | Fetch live tool definitions from a server; results are synced to the database. |
+| GET | `/api/mcp/tools` | List tools aggregated across all connected servers. |
+| POST | `/api/mcp/servers/{serverId}/tools/call` | Invoke a tool immediately with provided arguments. |
+| POST | `/api/mcp/servers/{serverId}/tools/jobs` | Queue a background tool invocation (persisted in `tool_jobs`). |
+| GET | `/api/mcp/jobs/{id}` | Retrieve job status and stored tool output. |
+| GET | `/api/mcp/resources` | Aggregate resources across all servers (also persisted). |
+| POST | `/api/mcp/refresh` | Refresh tool and resource caches for every server. |
+| GET | `/api/mcp/health` | Lightweight health summary (total vs connected servers). |
+| GET | `/swagger-ui.html` | Interactive OpenAPI documentation. |
+| GET | `/actuator/health`, `/actuator/prometheus` | Spring Boot Actuator endpoints (prometheus requires Micrometer scrape). |
 
-**Swagger UI**: http://localhost:8080/swagger-ui.html
+`ToolJobEntity` records automatically transition from `PENDING` -> `RUNNING` -> `SUCCESS/FAILED` as the async executor processes them. Responses include the stored JSON output or error payload.
 
-**OpenAPI JSON**: http://localhost:8080/api-docs
+## Persistence and Auto-Restart Behaviour
+- Servers, tools, resources, jobs, and users are stored in SQL Server tables (`server_registry`, `mcp_tools`, `mcp_resources`, `tool_jobs`, `users`). Tables are created automatically (`ddl-auto: update`).
+- On application startup, `McpClientService.restoreServers()` reconnects to every persisted server so tool/resource discovery continues without manual intervention.
+- Tool/resource discovery wipes and repopulates the cached database entries per server to keep metadata in sync.
+- Background jobs (`executeToolJob`) run asynchronously so the HTTP response returns immediately while long-running tool calls are processed.
 
-The Swagger UI provides:
-- ✅ Interactive API testing
-- ✅ Request/response examples
-- ✅ Schema documentation
-- ✅ Try it out functionality
-- ✅ Authentication testing (if configured)
+## Monitoring and Operations
+- **Rate limiting:** `RateLimitFilter` limits all requests to 50 per minute globally. Adjust the Bucket4j configuration to tune limits.
+- **Actuator health:** `/actuator/health` includes MCP-specific details via `McpServersHealthIndicator` (connected/total counts).
+- **Metrics:** `/actuator/prometheus` publishes Micrometer metrics ready for Prometheus scraping.
+- **Logging:** SLF4J + Logback with package-level overrides configured in `application.yml`.
 
-### Server Management
-
-#### Register a Server
+## Testing
 ```bash
-POST /api/mcp/servers
-Content-Type: application/json
-
-{
-  "id": "memory-server",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-memory"]
-}
+mvnw.cmd test
 ```
 
-#### List All Servers
-```bash
-GET /api/mcp/servers
-```
+The default test suite includes a Spring context smoke test. Add controller/service integration tests as you extend the application.
 
-#### Get Server Status
-```bash
-GET /api/mcp/servers/{serverId}/status
-```
+## Useful Commands
+- Health probe: `curl http://localhost:8080/api/mcp/health`
+- Register sample server:
+  ```bash
+  curl -X POST http://localhost:8080/api/mcp/servers \
+    -H "Authorization: Bearer <token>" \
+    -H "Content-Type: application/json" \
+    -d '{ "id": "memory-server", "command": "npx", "args": ["-y","@modelcontextprotocol/server-memory"] }'
+  ```
+- List cached tools for a server: `curl -H "Authorization: Bearer <token>" "http://localhost:8080/api/mcp/tools/db?serverId=memory-server"`
 
-#### Unregister a Server
-```bash
-DELETE /api/mcp/servers/{serverId}
-```
+## Next Steps
+1. Externalize sensitive secrets (datasource password, JWT key) into a vault or environment variables.
+2. Harden authentication (longer token expiry, refresh tokens, auditing).
+3. Add integration tests that exercise live MCP servers (memory/time/filesystem) via Testcontainers.
+4. Package the service with Docker or Kubernetes manifests for deployment.
 
-### Tool Management
-
-#### List Tools from a Server
-```bash
-GET /api/mcp/servers/{serverId}/tools
-```
-
-#### List Tools from All Servers
-```bash
-GET /api/mcp/tools
-```
-
-#### Call a Tool
-```bash
-POST /api/mcp/servers/{serverId}/tools/call
-Content-Type: application/json
-
-{
-  "name": "store_memory",
-  "arguments": {
-    "key": "user_name",
-    "value": "John Doe"
-  }
-}
-```
-
-### Resource Management
-
-#### List Resources from a Server
-```bash
-GET /api/mcp/servers/{serverId}/resources
-```
-
-#### List Resources from All Servers
-```bash
-GET /api/mcp/resources
-```
-
-## 🔌 Available MCP Servers
-
-Here are some MCP servers you can connect to:
-
-### 1. Memory Server
-```json
-{
-  "id": "memory-server",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-memory"]
-}
-```
-**Tools**: `store_memory`, `retrieve_memory`, `delete_memory`
-
-### 2. Filesystem Server
-```json
-{
-  "id": "filesystem-server",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-}
-```
-**Tools**: `read_file`, `write_file`, `list_directory`
-
-### 3. Time Server
-```json
-{
-  "id": "time-server",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-time"]
-}
-```
-**Tools**: `get_current_time`, `get_timezone`
-
-### 4. GitHub Server
-```json
-{
-  "id": "github-server",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-github"],
-  "env": {
-    "GITHUB_TOKEN": "your_github_token"
-  }
-}
-```
-**Tools**: Repository operations, issue management, etc.
-
-## 💡 Usage Examples
-
-### Example 1: Store and Retrieve Data
-
-```bash
-# Register memory server
-curl -X POST http://localhost:8080/api/mcp/servers \
-  -H "Content-Type: application/json" \
-  -d '{"id":"memory","command":"npx","args":["-y","@modelcontextprotocol/server-memory"]}'
-
-# Store data
-curl -X POST http://localhost:8080/api/mcp/servers/memory/tools/call \
-  -H "Content-Type: application/json" \
-  -d '{"name":"store_memory","arguments":{"key":"name","value":"Alice"}}'
-
-# Retrieve data
-curl -X POST http://localhost:8080/api/mcp/servers/memory/tools/call \
-  -H "Content-Type: application/json" \
-  -d '{"name":"retrieve_memory","arguments":{"key":"name"}}'
-```
-
-### Example 2: File Operations
-
-```bash
-# Register filesystem server
-curl -X POST http://localhost:8080/api/mcp/servers \
-  -H "Content-Type: application/json" \
-  -d '{"id":"fs","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}'
-
-# List available tools
-curl http://localhost:8080/api/mcp/servers/fs/tools
-
-# Read a file
-curl -X POST http://localhost:8080/api/mcp/servers/fs/tools/call \
-  -H "Content-Type: application/json" \
-  -d '{"name":"read_file","arguments":{"path":"/tmp/test.txt"}}'
-```
-
-## 🔍 Monitoring & Health Checks
-
-### Application Health
-```bash
-curl http://localhost:8080/api/mcp/health
-```
-
-### Spring Boot Actuator Endpoints
-```bash
-# Health
-curl http://localhost:8080/actuator/health
-
-# Metrics
-curl http://localhost:8080/actuator/metrics
-
-# Info
-curl http://localhost:8080/actuator/info
-```
-
-## ⚙️ Configuration
-
-### application.yml
-
-```yaml
-server:
-  port: 8080
-
-spring:
-  application:
-    name: mcp-client
-
-mcp:
-  client:
-    name: "spring-mcp-client"
-    version: "1.0.0"
-
-logging:
-  level:
-    com.example.mcpclient: DEBUG
-```
-
-### Custom Port
-
-Change the port in `application.yml` or use command line:
-
-```bash
-mvn spring-boot:run -Dspring-boot.run.arguments=--server.port=8081
-```
-
-## 🐛 Troubleshooting
-
-### Issue: "Server connection failed"
-**Solution**: Ensure Node.js and npx are installed
-```bash
-node --version
-npx --version
-```
-
-### Issue: "Port 8080 already in use"
-**Solution**: Change port in application.yml or kill the process
-```bash
-lsof -ti:8080 | xargs kill -9
-```
-
-### Issue: "Tools not found"
-**Solution**: Check server connection status
-```bash
-curl http://localhost:8080/api/mcp/servers/{serverId}/status
-```
-
-## 🧪 Testing
-
-### Run Tests
-```bash
-mvn test
-```
-
-### Manual Testing with curl
-See the Testing Guide artifact for comprehensive test scenarios.
-
-## 📦 Building for Production
-
-### Create JAR
-```bash
-mvn clean package
-```
-
-### Run JAR
-```bash
-java -jar target/mcp-client-1.0.0.jar
-```
-
-### Docker Support (Optional)
-
-Create `Dockerfile`:
-```dockerfile
-FROM openjdk:17-jdk-slim
-COPY target/mcp-client-1.0.0.jar app.jar
-ENTRYPOINT ["java","-jar","/app.jar"]
-```
-
-Build and run:
-```bash
-docker build -t mcp-client .
-docker run -p 8080:8080 mcp-client
-```
-
-## 🔐 Security Considerations
-
-1. **Add Authentication**: Implement Spring Security for API endpoints
-2. **Validate Input**: Add request validation using Bean Validation
-3. **Rate Limiting**: Implement rate limiting for API calls
-4. **CORS**: Configure CORS for web clients
-5. **Secrets Management**: Use environment variables for sensitive data
-
-## 🚀 Future Enhancements
-
-- [ ] WebSocket support for real-time notifications
-- [ ] Database integration for persistent server configs
-- [ ] Admin UI dashboard
-- [ ] Metrics and monitoring with Prometheus
-- [ ] Docker Compose setup
-- [ ] Kubernetes deployment configs
-- [ ] OpenAPI/Swagger documentation
-- [ ] Batch operations support
-- [ ] Server health monitoring
-- [ ] Connection pooling
-
-## 📝 License
-
+## License
 MIT License
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📞 Support
-
-For issues and questions:
-- Check the Testing Guide artifact
-- Review application logs
-- Ensure all prerequisites are met
-
-## 🎯 Quick Start Checklist
-
-- [ ] Java 17+ installed
-- [ ] Maven installed
-- [ ] Node.js 18+ installed
-- [ ] All Java files copied to correct packages (including OpenApiConfig.java)
-- [ ] application.yml in src/main/resources
-- [ ] pom.xml in project root (with Swagger dependency)
-- [ ] Run `mvn clean install`
-- [ ] Run `mvn spring-boot:run`
-- [ ] Test health endpoint: `curl http://localhost:8080/api/mcp/health`
-- [ ] **Open Swagger UI: http://localhost:8080/swagger-ui.html**
-- [ ] Register first server via Swagger's "Try it out" button
-- [ ] Start building!
-
----
-
-**Built with ❤️ using Spring Boot, Model Context Protocol, and Swagger/OpenAPI**

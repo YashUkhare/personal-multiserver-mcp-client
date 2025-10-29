@@ -1,19 +1,39 @@
 package com.mcp.client.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mcp.client.entity.ResourceEntity;
+import com.mcp.client.entity.ServerEntity;
+import com.mcp.client.entity.ToolEntity;
+import com.mcp.client.entity.ToolJobEntity;
 import com.mcp.client.model.*;
+import com.mcp.client.repository.ResourceRepository;
+import com.mcp.client.repository.ServerRepository;
+import com.mcp.client.repository.ToolJobRepository;
+import com.mcp.client.repository.ToolRepository;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class McpClientService {
+
+    private final ServerRepository serverRepository;
+    private final ToolRepository toolRepository;
+    private final ResourceRepository resourceRepository;
+    private final ToolJobRepository toolJobRepository;
 
     @Value("${mcp.client.name:spring-mcp-client}")
     private String clientName;
@@ -22,6 +42,37 @@ public class McpClientService {
     private String clientVersion;
 
     private final Map<String, McpServerConnection> connections = new ConcurrentHashMap<>();
+
+    // --------------- Restore Connections on Startup ---------------
+    @PostConstruct
+    public void restoreServers() {
+        List<ServerEntity> entities = serverRepository.findAll();
+        log.info("Restoring {} previously registered MCP servers...", entities.size());
+
+        for (ServerEntity entity : entities) {
+            try {
+                ServerConfig config = new ServerConfig(
+                        entity.getId(),
+                        entity.getCommand(),
+                        List.of(entity.getArgs().split(",")),
+                        entity.getWorkingDirectory());
+
+                McpServerConnection connection = new McpServerConnection(config);
+                connection.connect(clientName, clientVersion);
+                connections.put(entity.getId(), connection);
+
+                entity.setStatus(ServerEntity.Status.CONNECTED);
+                entity.setLastConnected(LocalDateTime.now());
+                serverRepository.save(entity);
+                log.info("Reconnected server: {}", entity.getId());
+
+            } catch (IOException e) {
+                log.warn("Failed to restore server {}: {}", entity.getId(), e.getMessage());
+                entity.setStatus(ServerEntity.Status.FAILED);
+                serverRepository.save(entity);
+            }
+        }
+    }
 
     /**
      * Register and connect to a new MCP server
@@ -32,13 +83,24 @@ public class McpClientService {
         }
 
         log.info("Registering MCP server: {}", config.getId());
-        
+
         McpServerConnection connection = new McpServerConnection(config);
         connection.connect(clientName, clientVersion);
-        
+
         connections.put(config.getId(), connection);
-        
-        log.info("Successfully registered MCP server: {}", config.getId());
+
+        // Persist in DB
+        ServerEntity entity = ServerEntity.builder()
+                .id(config.getId())
+                .command(config.getCommand())
+                .args(String.join(",", config.getArgs()))
+                .workingDirectory(config.getWorkingDirectory())
+                .status(ServerEntity.Status.CONNECTED)
+                .lastConnected(java.time.LocalDateTime.now())
+                .build();
+
+        serverRepository.save(entity);
+        log.info("Successfully registered and persisted MCP server: {}", config.getId());
     }
 
     /**
@@ -49,6 +111,11 @@ public class McpClientService {
         if (connection != null) {
             connection.disconnect();
             log.info("Unregistered MCP server: {}", serverId);
+
+            serverRepository.findById(serverId).ifPresent(entity -> {
+                entity.setStatus(ServerEntity.Status.DISCONNECTED);
+                serverRepository.save(entity);
+            });
         }
     }
 
@@ -57,7 +124,7 @@ public class McpClientService {
      */
     public List<ServerInfo> listServers() {
         List<ServerInfo> servers = new ArrayList<>();
-        
+
         for (Map.Entry<String, McpServerConnection> entry : connections.entrySet()) {
             ServerInfo info = new ServerInfo();
             info.setId(entry.getKey());
@@ -65,7 +132,7 @@ public class McpClientService {
             info.setConfig(entry.getValue().getConfig());
             servers.add(info);
         }
-        
+
         return servers;
     }
 
@@ -74,7 +141,21 @@ public class McpClientService {
      */
     public List<McpTool> listTools(String serverId) throws IOException {
         McpServerConnection connection = getConnection(serverId);
-        return connection.listTools();
+        List<McpTool> tools = connection.listTools();
+
+        // persist/update
+        ServerEntity serverEntity = serverRepository.findById(serverId).orElseThrow();
+        toolRepository.deleteAll(toolRepository.findByServer_Id(serverId)); // refresh existing
+        for (McpTool tool : tools) {
+            toolRepository.save(ToolEntity.builder()
+                    .name(tool.getName())
+                    .description(tool.getDescription())
+                    .inputSchema(new ObjectMapper().writeValueAsString(tool.getInputSchema()))
+                    .server(serverEntity)
+                    .build());
+        }
+
+        return tools;
     }
 
     /**
@@ -82,7 +163,7 @@ public class McpClientService {
      */
     public Map<String, List<McpTool>> listAllTools() {
         Map<String, List<McpTool>> allTools = new HashMap<>();
-        
+
         for (Map.Entry<String, McpServerConnection> entry : connections.entrySet()) {
             try {
                 List<McpTool> tools = entry.getValue().listTools();
@@ -92,7 +173,7 @@ public class McpClientService {
                 allTools.put(entry.getKey(), new ArrayList<>());
             }
         }
-        
+
         return allTools;
     }
 
@@ -109,7 +190,22 @@ public class McpClientService {
      */
     public List<McpResource> listResources(String serverId) throws IOException {
         McpServerConnection connection = getConnection(serverId);
-        return connection.listResources();
+        List<McpResource> resources = connection.listResources();
+
+        // persist/update
+        ServerEntity serverEntity = serverRepository.findById(serverId).orElseThrow();
+        resourceRepository.deleteAll(resourceRepository.findByServer_Id(serverId)); // refresh existing
+        for (McpResource resource : resources) {
+            resourceRepository.save(ResourceEntity.builder()
+                    .name(resource.getName())
+                    .description(resource.getDescription())
+                    .server(serverEntity)
+                    .uri(resource.getUri())
+                    .mimeType(resource.getMimeType())
+                    .build());
+        }
+
+        return resources;
     }
 
     /**
@@ -117,7 +213,7 @@ public class McpClientService {
      */
     public Map<String, List<McpResource>> listAllResources() {
         Map<String, List<McpResource>> allResources = new HashMap<>();
-        
+
         for (Map.Entry<String, McpServerConnection> entry : connections.entrySet()) {
             try {
                 List<McpResource> resources = entry.getValue().listResources();
@@ -127,7 +223,7 @@ public class McpClientService {
                 allResources.put(entry.getKey(), new ArrayList<>());
             }
         }
-        
+
         return allResources;
     }
 
@@ -167,6 +263,37 @@ public class McpClientService {
             }
         }
         connections.clear();
+    }
+
+    public void refreshAllServersData() {
+        for (ServerEntity server : serverRepository.findAll()) {
+            try {
+                listTools(server.getId());
+                listResources(server.getId());
+            } catch (Exception e) {
+                log.warn("Refresh failed for {}: {}", server.getId(), e.getMessage());
+            }
+        }
+    }
+
+    @Async
+    public void executeToolJob(ToolJobEntity job) {
+        try {
+            job.setStatus(ToolJobEntity.Status.RUNNING);
+            toolJobRepository.save(job);
+
+            JsonNode result = callTool(job.getServerId(), job.getToolName(),
+                    new ObjectMapper().readTree(job.getArgumentsJson()));
+
+            job.setResultJson(result.toString());
+            job.setStatus(ToolJobEntity.Status.SUCCESS);
+        } catch (Exception e) {
+            job.setResultJson("{\"error\":\"" + e.getMessage() + "\"}");
+            job.setStatus(ToolJobEntity.Status.FAILED);
+        } finally {
+            job.setCompletedAt(LocalDateTime.now());
+            toolJobRepository.save(job);
+        }
     }
 
     /**

@@ -31,68 +31,68 @@ Spring Boot 3 service that connects to and orchestrates multiple Model Context P
 
 ````text
 client/
-├── README.md
-├── pom.xml
-├── mvnw
-├── mvnw.cmd
-├── .mvn/
-│   └── wrapper/
-│       ├── maven-wrapper.jar
-│       └── maven-wrapper.properties
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/mcp/client/
-│   │   │       ├── ClientApplication.java
-│   │   │       ├── config/
-│   │   │       │   ├── OpenApiConfig.java
-│   │   │       │   └── SecurityConfig.java
-│   │   │       ├── controller/
-│   │   │       │   ├── AuthController.java
-│   │   │       │   └── McpController.java
-│   │   │       ├── entity/
-│   │   │       │   ├── ResourceEntity.java
-│   │   │       │   ├── ServerEntity.java
-│   │   │       │   ├── ToolEntity.java
-│   │   │       │   ├── ToolJobEntity.java
-│   │   │       │   └── UserEntity.java
-│   │   │       ├── exception/
-│   │   │       │   └── GlobalExceptionHandler.java
-│   │   │       ├── filter/
-│   │   │       │   └── RateLimitFilter.java
-│   │   │       ├── monitoring/
-│   │   │       │   └── McpServersHealthIndicator.java
-│   │   │       ├── model/
-│   │   │       │   ├── InitializeRequest.java
-│   │   │       │   ├── JsonRpcRequest.java
-│   │   │       │   ├── JsonRpcResponse.java
-│   │   │       │   ├── McpResource.java
-│   │   │       │   ├── McpTool.java
-│   │   │       │   ├── ServerConfig.java
-│   │   │       │   └── ToolCallRequest.java
-│   │   │       ├── repository/
-│   │   │       │   ├── ResourceRepository.java
-│   │   │       │   ├── ServerRepository.java
-│   │   │       │   ├── ToolJobRepository.java
-│   │   │       │   ├── ToolRepository.java
-│   │   │       │   └── UserRepository.java
-│   │   │       ├── security/
-│   │   │       │   ├── CustomUserDetailsService.java
-│   │   │       │   ├── JwtAuthFilter.java
-│   │   │       │   └── JwtService.java
-│   │   │       └── service/
-│   │   │           ├── McpClientService.java
-│   │   │           └── McpServerConnection.java
-│   │   └── resources/
-│   │       ├── application.yml
-│   │       ├── application.properties
-│   │       ├── static/
-│   │       └── templates/
-│   └── test/
-│       └── java/
-│           └── com/mcp/client/
-│               └── ClientApplicationTests.java
-└── target/ (build output)
+|-- README.md
+|-- pom.xml
+|-- mvnw
+|-- mvnw.cmd
+|-- .mvn/
+|   |-- wrapper/
+|       |-- maven-wrapper.jar
+|       |-- maven-wrapper.properties
+|-- src/
+|   |-- main/
+|   |   |-- java/
+|   |   |   |-- com/mcp/client/
+|   |   |       |-- ClientApplication.java
+|   |   |       |-- config/
+|   |   |       |   |-- OpenApiConfig.java
+|   |   |       |   |-- SecurityConfig.java
+|   |   |       |-- controller/
+|   |   |       |   |-- AuthController.java
+|   |   |       |   |-- McpController.java
+|   |   |       |-- entity/
+|   |   |       |   |-- ResourceEntity.java
+|   |   |       |   |-- ServerEntity.java
+|   |   |       |   |-- ToolEntity.java
+|   |   |       |   |-- ToolJobEntity.java
+|   |   |       |   |-- UserEntity.java
+|   |   |       |-- exception/
+|   |   |       |   |-- GlobalExceptionHandler.java
+|   |   |       |-- filter/
+|   |   |       |   |-- RateLimitFilter.java
+|   |   |       |-- monitoring/
+|   |   |       |   |-- McpServersHealthIndicator.java
+|   |   |       |-- model/
+|   |   |       |   |-- InitializeRequest.java
+|   |   |       |   |-- JsonRpcRequest.java
+|   |   |       |   |-- JsonRpcResponse.java
+|   |   |       |   |-- McpResource.java
+|   |   |       |   |-- McpTool.java
+|   |   |       |   |-- ServerConfig.java
+|   |   |       |   |-- ToolCallRequest.java
+|   |   |       |-- repository/
+|   |   |       |   |-- ResourceRepository.java
+|   |   |       |   |-- ServerRepository.java
+|   |   |       |   |-- ToolJobRepository.java
+|   |   |       |   |-- ToolRepository.java
+|   |   |       |   |-- UserRepository.java
+|   |   |       |-- security/
+|   |   |       |   |-- CustomUserDetailsService.java
+|   |   |       |   |-- JwtAuthFilter.java
+|   |   |       |   |-- JwtService.java
+|   |   |       |-- service/
+|   |   |           |-- McpClientService.java
+|   |   |           |-- McpServerConnection.java
+|   |   |-- resources/
+|   |       |-- application.yml
+|   |       |-- application.properties
+|   |       |-- static/
+|   |       |-- templates/
+|   |-- test/
+|       |-- java/
+|           |-- com/mcp/client/
+|               |-- ClientApplicationTests.java
+|-- target/ (build output)
 ````
 
 ## Prerequisites
@@ -102,14 +102,14 @@ client/
 - Node.js 18+ and npm (only required when you want to run sample MCP servers via `npx`)
 
 ## Configuration
-`src/main/resources/application.yml` ships with sensible defaults:
+`src/main/resources/application.yml` reads from `.env` so you can tweak settings without touching committed config. Provide values for:
 
-- Server port: `8080`
-- Datasource: `jdbc:sqlserver://localhost:1433;databaseName=mcp_client;encrypt=false` with `sa/root@123`
-- JPA: `ddl-auto: update` (creates tables automatically in development)
-- Client metadata: `mcp.client.name` and `mcp.client.version` (shared with MCP servers during initialization)
-- Swagger UI exposed at `/swagger-ui.html`
-- Actuator endpoints exposed for `health`, `metrics`, and `prometheus`
+- `SERVER_PORT`
+- `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
+- `MCP_CLIENT_NAME`, `MCP_CLIENT_VERSION`
+- `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`
+
+JPA is configured with `ddl-auto: update` for development and Swagger UI stays exposed at `/swagger-ui.html`. Actuator surfaces health, metrics, and Prometheus scraping endpoints out of the box. If any property is missing, Spring will fail fast, so make sure your `.env` (or environment) contains the complete set above.
 
 Override any property via environment variables or JVM args, for example:
 
@@ -229,3 +229,4 @@ The default test suite includes a Spring context smoke test. Add controller/serv
 
 ## License
 MIT License
+

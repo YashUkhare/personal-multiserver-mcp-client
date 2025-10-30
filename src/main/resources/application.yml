@@ -1,14 +1,16 @@
 # application.yml
 server:
-  port: 8080
+  port: ${SERVER_PORT}
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: mcp-client
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=mcp_client;encrypt=false
-    username: sa
-    password: root@123
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
@@ -20,8 +22,13 @@ spring:
 
 mcp:
   client:
-    name: "spring-mcp-client"
-    version: "1.0.0"
+    name: ${MCP_CLIENT_NAME}
+    version: ${MCP_CLIENT_VERSION}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES}
 
 springdoc:
   api-docs:
@@ -35,7 +42,7 @@ springdoc:
 
 logging:
   level:
-    com.example.mcpclient: DEBUG
+    com.mcp.client: DEBUG
     root: INFO
   
 management:
@@ -56,7 +63,7 @@ spring:
 
 logging:
   level:
-    com.example.mcpclient: TRACE
+    com.mcp.client: TRACE
 
 ---
 spring:
@@ -66,4 +73,4 @@ spring:
 
 logging:
   level:
-    com.example.mcpclient: INFO
+    com.mcp.client: INFO
